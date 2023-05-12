@@ -9,16 +9,11 @@ import {
   OpenAIApi,
 } from "https://esm.sh/openai@3.1.0";
 import { ApplicationError, UserError } from "../_shared/errors.ts";
+import { corsHeaders } from '../_shared/cors.ts'
 
-const openAiKey = Deno.env.get("OPENAI_KEY");
-const supabaseUrl = Deno.env.get("SUPABASE_URL");
-const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-
-export const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type",
-};
+const openAiKey = Deno.env.get('OPENAI_KEY')
+const supabaseUrl = Deno.env.get('SUPABASE_URL')
+const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
 
 serve(async (req) => {
   try {
@@ -33,12 +28,16 @@ serve(async (req) => {
 
     if (!supabaseUrl) {
       throw new ApplicationError("Missing environment variable SUPABASE_URL");
+    }else{
+      console.log("supabaseUrl: " + supabaseUrl);
     }
 
     if (!supabaseServiceKey) {
       throw new ApplicationError(
         "Missing environment variable SUPABASE_SERVICE_ROLE_KEY"
       );
+    }else{
+      console.log("supabaseServiceKey: " + supabaseServiceKey);
     }
 
     const requestData = await req.json();
@@ -92,8 +91,8 @@ serve(async (req) => {
       "match_page_sections",
       {
         embedding,
-        match_threshold: 0.78,
         match_count: 10,
+        match_threshold: 0.78,
         min_content_length: 50,
       }
     );
@@ -121,8 +120,8 @@ serve(async (req) => {
 
     const prompt = codeBlock`
       ${oneLine`
-        You are a very enthusiastic Supabase representative who loves
-        to help people! Given the following sections from the Supabase
+        You are a very enthusiastic Sentinel Blue representative who loves
+        to help people! Given the following sections from the Sentinel Blue
         documentation, answer the question using only that information,
         outputted in markdown format. If you are unsure and the answer
         is not explicitly written in the documentation, say
