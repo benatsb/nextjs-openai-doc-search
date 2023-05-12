@@ -1,6 +1,15 @@
 'use client'
 
 import * as React from 'react'
+import {
+  Dispatch,
+  SetStateAction,
+  useCallback,
+  useEffect,
+  useReducer,
+  useRef,
+  useState,
+} from 'react'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -15,6 +24,28 @@ import { SSE } from 'sse.js'
 import type { CreateCompletionResponse } from 'openai'
 import { getEdgeFunctionUrl } from '@/lib/utils'
 import { X, Loader, User, Frown, CornerDownLeft, Search, Wand } from 'lucide-react'
+import { isNull } from 'util'
+
+
+enum MessageRole {
+  User = 'user',
+  Assistant = 'assistant',
+}
+enum MessageStatus {
+  Pending = 'pending',
+  InProgress = 'in-progress',
+  Complete = 'complete',
+}
+interface Message {
+  role: MessageRole
+  content: string
+  status: MessageStatus
+} 
+
+interface NewMessageAction {
+  type: 'new'
+  message: Message
+}
 
 function promptDataReducer(
   state: any[],
@@ -58,6 +89,42 @@ function promptDataReducer(
   return [...current]
 }
 
+function messageReducer(state: Message[], messageAction: NewMessageAction) {
+  let current = [...state]
+  const { type } = messageAction
+
+  switch (type) {
+    case 'new': {
+      const { message } = messageAction
+      current.push(message)
+      break
+    }
+    //case 'update': {
+    //  const { index, message } = messageAction
+    //  if (current[index]) {
+    //    Object.assign(current[index], message)
+    //  }
+    //  break
+    //}
+    //case 'append-content': {
+    //  const { index, content } = messageAction
+    //  if (current[index]) {
+    //    current[index].content += content
+    //  }
+    //  break
+    //}
+    //case 'reset': {
+    //  current = []
+    //  break
+    //}
+    default: {
+      throw new Error(`Unknown message action '${type}'`)
+    }
+  }
+
+  return current
+}
+
 export function SearchDialog() {
   const [open, setOpen] = React.useState(false)
   const [search, setSearch] = React.useState<string>('')
@@ -99,6 +166,7 @@ export function SearchDialog() {
     setIsLoading(false)
   }
 
+
   const handleConfirm = React.useCallback(
     async (query: string) => {
       setAnswer(undefined)
@@ -108,14 +176,40 @@ export function SearchDialog() {
       setHasError(false)
       setIsLoading(true)
 
-      const eventSource = new SSE(`${edgeFunctionUrl}/vector-search`, {
+
+      const messages = promptData.map(({ query, answer, status }) => ({
+        role: MessageRole.User,
+        content: query,
+        status,
+      }))
+
+      //const eventSource = new SSE(`${edgeFunctionUrl}/vector-search`, {
+      //const eventSource = new SSE(`${edgeFunctionUrl}/clippy-search`, {
+      //const eventSource = new SSE(`${edgeFunctionUrl}/ai-docs`, {
+
+      const eventSource = new SSE(`${edgeFunctionUrl}/v2-search`, {
         headers: {
           apikey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? '',
           Authorization: `Bearer ${process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY}`,
           'Content-Type': 'application/json',
         },
-        payload: JSON.stringify({ query }),
+        payload: JSON.stringify({
+          messages: messages
+          .filter(({ status }) => status === MessageStatus.Complete)
+          .map(({ role, content }) => ({ role, content }))
+          .concat({ role: MessageRole.User, content: query }),
+        }),
       })
+
+      //const eventSource = new SSE(`${edgeFunctionUrl}/v2-search`, {
+      //  headers: {
+      //    apikey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? '',
+      //    Authorization: `Bearer ${process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY}`,
+      //    'Content-Type': 'application/json',
+      //  },
+      //  payload: JSON.stringify({ query }),
+      //  method: 'POST'
+      //})
 
       function handleError<T>(err: T) {
         setIsLoading(false)
@@ -136,8 +230,9 @@ export function SearchDialog() {
           }
 
           const completionResponse: CreateCompletionResponse = JSON.parse(e.data)
-          const text = completionResponse.choices[0].text
-
+          //const text = completionResponse.choices[0].text
+          const text = completionResponse.choices[0].delta.content ?? '';
+          console.log(text);
           setAnswer((answer) => {
             const currentAnswer = answer ?? ''
 
@@ -183,7 +278,7 @@ export function SearchDialog() {
         </kbd>{' '}
       </button>
       <Dialog open={open}>
-        <DialogContent className="sm:max-w-[850px] text-black">
+        <DialogContent className="sm:max-w-[850px] text-black dark:text-slate-200">
           <DialogHeader>
             <DialogTitle>OpenAI powered doc search</DialogTitle>
             <DialogDescription>
@@ -200,7 +295,7 @@ export function SearchDialog() {
               {question && (
                 <div className="flex gap-4">
                   <span className="bg-slate-100 p-2 w-8 h-8 rounded-full text-center flex items-center justify-center">
-                    <User width={18} />{' '}
+                    <User width={18} className="text-black" />{' '}
                   </span>
                   <p className="mt-0.5 font-semibold">{question}</p>
                 </div>
@@ -215,7 +310,7 @@ export function SearchDialog() {
               {hasError && (
                 <div className="flex items-center gap-4">
                   <span className="bg-red-100 p-2 w-8 h-8 rounded-full text-center flex items-center justify-center">
-                    <Frown width={18} />
+                    <Frown width={18} className="text-white"/>
                   </span>
                   Sad news, the search has failed! Please try again.
                 </div>
@@ -224,7 +319,7 @@ export function SearchDialog() {
               {answer && !hasError ? (
                 <div className="flex items-center gap-4">
                   <span className="bg-green-500 p-2 w-8 h-8 rounded-full text-center flex items-center justify-center">
-                    <Wand width={18} className="text-white" />
+                    <Wand width={18} className="text-black" />
                   </span>
                   <h3 className="font-semibold">Answer:</h3>
                   {answer}
@@ -250,9 +345,9 @@ export function SearchDialog() {
                 <button
                   type="button"
                   className="px-1.5 py-0.5 bg-slate-50 hover:bg-slate-100  rounded border border-s-slate-200"
-                  onClick={(_) => setSearch('lorem ipsum put a question here?')}
+                  onClick={(_) => setSearch('What is the Halo URL?')}
                 >
-                  lorem ipsum put a question here?
+                  What is the Halo URL?
                 </button>
               </div>
             </div>
