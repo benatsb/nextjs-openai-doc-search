@@ -51,7 +51,7 @@ sequenceDiagram
     end
 ```
 
-The relevant files for this are the [`SearchDialog` (Client)](./app/components/SearchDialog.tsx) component and the [`vector-search` (Edge Function)](./supabase/functions/vector-search/index.ts).
+The relevant files for this are the [`SearchDialog` (Client)](./app/components/SearchDialog.tsx) component and the [`v2-search` (Edge Function)](./supabase/functions/v2-search/index.ts).
 
 The initialization of the database, including the setup of the `pg_vector` extension is stored in the [`supabase/migrations` folder](./supabase/migrations/) which is automatically applied to your local Postgres instance when running `supabase start`.
 
@@ -74,9 +74,18 @@ In order for vscode to handle the workspaces correctly, open the project via the
 code nextjs-openai-doc-search.code-workspace
 ```
 
+### Build App
+
+I had to build the app once before it would run locally:
+
+```bash
+cd app
+pnpm build
+```
+
 ### Start Supabase
 
-Make sure you have Docker installed and running locally. Then run
+Make sure you have Docker installed and running locally. Then run the follwoing from the root folder on the cli.
 
 ```bash
 supabase start
@@ -85,8 +94,21 @@ supabase start
 ### Serve edge functions locally
 
 ```bash
-supabase functions serve --env-file supabase/functions/.env
+supabase functions serve v2-search --env-file supabase/functions/.env  --debug
 ```
+
+### Run the `generate-embeddings` script
+
+I found that using plain text in a markdown file works well. They must all have the extension ```.mdx```. However, the quility of the text will detremine the quality of the search results.
+
+Move your ```.mdx``` files into the ```app/pages/docs``` [/app/pages/docs/](./app/pages/docs/) folder and run the following command:
+
+```bash
+cd app
+pnpm generate-embeddings
+```
+
+Open your Supabase studio and navigate to the ```"Default Project" > Table Editor > select "nods_page_section"```. There should be rows of new values. See "main branch" for some more information.
 
 ### Start the Next.js App
 
